@@ -1,0 +1,73 @@
+# Ember base pretraining recipe.
+#
+# 6-layer / 128-d transformer over 1280-gene contexts (1024 randomly sampled
+# nonzero genes + 256 zero genes per cell), 50% masked-expression MSE plus an
+# InfoNCE PPI link-prediction loss (weight 3) over STRING edges between
+# nonzero-expression genes. Trained on 250K CELLxGENE cells.
+
+defaults:
+  - paths
+
+seed: 42
+name: "ember_base"
+
+paths:
+  anndata_path: ${root}/data/cxg_250K_train.h5ad       # training cells (raw counts)
+  val_anndata_path: ${root}/data/cxg_250K_val.h5ad     # held-out donors; same genes, same order
+  graph_path: ${root}/graphs/9606.filtered_800_adaptive_gene_symbols.csv  # gene1,gene2 edge list
+  results_dir: ${root}/checkpoints/${name}
+
+data:
+  context_length: 1280        # genes per cell
+  zero_genes: 256             # slots reserved for zero-expression genes
+  prioritize_high_expr: false # false: sample nonzero genes uniformly; true: take the top-expressed
+  mask_ratio: 0.5             # fraction of context positions masked
+  log1p: true                 # CP10K + log1p normalisation
+  gene_name_col: "feature_name"  # column of adata.var with gene symbols (null: var_names)
+  graph_on_nonzero: true      # keep only PPI edges between nonzero-expression genes
+  batch_size: 64
+  train_ratio: 0.99           # only used when val_anndata_path is not given
+  num_workers: 4
+
+model:
+  embed_dim: 128
+  num_layers: 6
+  num_heads: 4
+  mlp_ratio: 4.0
+  dropout: 0.1
+  encoder_dropout: 0.0
+  decoder_dropout: 0.0
+  use_graph_loss: true
+  graph_loss_weight: 3.0
+  graph_proj_dim: 128         # 2-layer MLP projection before the InfoNCE scores
+  graph_proj_dropout: 0.1
+  graph_loss_batch_size: 1024 # max positive edges per cell
+  graph_neg_ratio: 5          # negatives per positive edge
+  neg_samp_strat: "per_pos_head"  # negatives per source node, excluding known edges
+  graph_logit_scale: 5.0      # inverse temperature on cosine scores
+
+training:
+  epochs: 100
+  accumulate_grad_batches: 1
+  grad_norm_clip: 1.0
+  val_epoch_freq: 1
+  save_epoch_freq: 1
+  early_stopping_patience: 25
+  early_stopping_tol: 1e-4
+  load_from_checkpoint: true  # resume from results_dir/milestone.txt if present
+  overfit: false              # true: no validation, train on everything
+
+optimizer:
+  name: "AdamW"
+  learning_rate: 1e-3
+  weight_decay: 0.01
+
+scheduler:
+  warmup_steps: 1500          # linear warmup, then cosine decay to eta_min
+  eta_min: 1e-6
+
+wandb:
+  enabled: false
+  project: "ember"
+  entity: null
+  name: "${name}"

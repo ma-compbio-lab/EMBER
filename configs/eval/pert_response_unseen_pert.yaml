@@ -1,0 +1,60 @@
+# Perturbation response — UNSEEN PERTURBATIONS, single cell line.
+#
+# Task: given a CRISPRi perturbation (`pert`) and a readout gene (`gene`) in one
+# cell line, predict whether the readout gene is differentially expressed
+# (label 1) or not (label 0). Pairs are embedded as [pert || gene] using the
+# cell line's own contextual gene embeddings (nested pickle keyed by cell line).
+#
+# Splits (split_1..split_10 columns, one deterministic 10-fold scheme): folds
+# hold out PERTURBATIONS — every pert appears in exactly one of train/val/test
+# per fold, so test perts are never seen during training. Rows whose split
+# value is not train/val/test are dropped for that fold.
+#
+# Test pairs whose pert or gene has no embedding are kept and scored at the
+# training positive rate, so every embedding is evaluated on the same test set.
+#
+# Run:  python evaluate.py --config-name pert_response_unseen_pert cell_line=k562 embed_name=<pkl stem>
+#       cell_line in {hepg2, jurkat, k562, rpe1}
+defaults:
+  - paths
+
+evaluator: pairs   # driver used by evaluate.py (gene-pair probe)
+
+cell_line: k562
+embed_name: ember_base_pert_response
+embed_path: ${root}/embeddings/${embed_name}.pkl
+task_dir: ${root}/tasks/pert-response-unseen-pert
+dataset: ${task_dir}/${cell_line}.csv
+output_dir: ${task_dir}/results/${cell_line}
+name_suffix: ""
+
+task_type: classification
+label_col: label
+gene_columns: [pert, gene]
+missing_gene_strategy: filter
+
+# Nested embeddings are indexed by this column of the task CSV
+ct_specific: true
+ct_column: cell_line
+
+# Model
+model_type: mlp
+fusion_strat: concat
+hidden_dim: 128
+n_layers: 2
+
+# Training: per fold, every sweep combination is trained with early stopping
+# on validation AUROC and the best-val model is scored on the test set.
+max_epochs: 200
+patience: 10
+tol: 1e-4
+seed: 42
+max_folds: null               # e.g. max_folds=2 runs only the first two folds
+val_selection_criteria: auroc
+optimizer: adamw
+
+sweep:
+  lr: [1e-2, 1e-3, 1e-4]
+  batch_size: [256, 512]
+  weight_decay: [0.0, 0.01]
+  dropout: [0.0, 0.1]

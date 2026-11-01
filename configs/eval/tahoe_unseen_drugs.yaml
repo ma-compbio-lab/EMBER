@@ -1,0 +1,61 @@
+# tahoe-unseen-drugs: within-cell-line drug-response regression on UNSEEN drugs.
+#
+# Tahoe-100M analogue of lincs_unseen_drugs.yaml: same driver, same within-line
+# 10-fold target-aware drug holdout, same model and sweep. Only the atlas
+# (Tahoe DESeq2 log2FC, 1024 genes, 172 DrugBank drugs), the cell lines and
+# the embedding differ. The atlas carries a `padj` layer that is IGNORED unless
+# `use_padj=true` (opt-in so the valid-gene set never changes silently).
+#
+# Cell lines (`cell_line` -> atlas key `ct_label`, a Cellosaurus id):
+#   a172 = CVCL_0131   sw480 = CVCL_0546   ncih460 = CVCL_0459
+#   bt474 = CVCL_0179
+# The embedding pickle must be keyed by those CVCL ids:
+#   embeds['CVCL_0546'][gene_symbol] -> float32[128]
+#
+# Metrics: per-drug Pearson raw and delta-over-train-mean (see
+# ember/eval/run_drug.py); selection on validation MSE.
+defaults:
+  - paths
+
+evaluator: drug   # driver used by evaluate.py (unseen-drug log2FC regression)
+
+cell_line: sw480                                  # a172 | sw480 | ncih460 | bt474
+embed_name: ember_base_tahoe
+embed_path: ${root}/embeddings/${embed_name}.pkl
+
+task_dir: ${root}/tasks/tahoe-unseen-drugs
+atlas_path: ${task_dir}/atlas.h5ad
+hvg_path: ${task_dir}/genes_eval.txt
+split_spec: ${task_dir}/${cell_line}_split.json
+drug_lookup: ${task_dir}/drug_lookup.csv
+output_dir: ${task_dir}/results/${cell_line}
+name_suffix: ""
+use_padj: false
+
+# Drug representation
+drug_repr_mode: targets        # targets | morgan
+use_moa: true
+moa_embed_dim: 8
+max_targets: 25
+
+# Model
+hidden_dim: 64
+n_layers: 2
+gene_embed_dim: 128            # morgan mode only
+drug_proj_layers: 2            # morgan mode only: 2 = MLP 2048->64->64
+
+# Training
+val_selection_criteria: mse
+optimizer: adam
+max_epochs: 100
+patience: 8
+tol: 1.0e-4
+seed: 42
+num_workers: 0
+# +folds=[1] on the CLI runs a subset of folds; omitted -> all 10
+
+sweep:
+  lr: [1.0e-3, 1.0e-4]
+  batch_size: [512]
+  weight_decay: [0.0, 0.01]
+  dropout: [0.0, 0.1]

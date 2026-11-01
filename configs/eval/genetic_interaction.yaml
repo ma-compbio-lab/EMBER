@@ -1,0 +1,68 @@
+# Genetic interaction — signed qGI regression in HAP1, UNSEEN LIBRARY GENES.
+#
+# Task: given a (library_gene, query_gene) CRISPR double-knockout pair, predict
+# the SIGNED quantitative genetic-interaction score qGI (negative = synthetic
+# lethal, positive = buffering). Pairs are embedded as [library || query] with
+# HAP1 contextual gene embeddings (nested pickle keyed 'HAP1').
+#
+# Splits (split_1..split_10): folds hold out LIBRARY genes — every library gene
+# is in exactly one of train/val/test per fold, so each test pair has a library
+# gene the model never saw (the query gene may be seen).
+#
+# Training loss is MSE on qGI. Model selection (early stopping + sweep) uses the
+# ANY-arm residual AUPRC on the val set: predictions are corrected for library
+# and query main effects (two-way residual) and |residual| is scored against
+# significant interactions (|qGI| > 0.3, FDR < 0.1) vs confident zeros
+# (|qGI| < 0.05, FDR > 0.5). `residual_metrics: true` computes the same
+# residual AUPRC / AUROC (any / neg / pos arms, plus degree-matched balanced
+# AUROC) on the test predictions at the end (see ember/eval/gi_residual.py).
+#
+# Test pairs with a gene missing from the embedding are kept and scored at the
+# training-mean qGI; they are excluded from the residual metrics.
+#
+# NOTE: no `optimizer` key on purpose -> Adam (the pert-response tasks use AdamW).
+#
+# Run:  python evaluate.py --config-name genetic_interaction embed_name=<pkl stem>
+defaults:
+  - paths
+
+evaluator: pairs   # driver used by evaluate.py (gene-pair probe)
+
+embed_name: ember_base_genetic_interaction
+embed_path: ${root}/embeddings/${embed_name}.pkl
+task_dir: ${root}/tasks/genetic-interaction
+dataset: ${task_dir}/gi_dataset.csv
+output_dir: ${task_dir}/results
+name_suffix: ""
+
+task_type: regression
+label_col: qGI
+# Library first, then query — MLPConcat flattens the stack into [lib || query]
+gene_columns: [library_gene, query_gene]
+missing_gene_strategy: filter
+
+# Single cell line (HAP1); nested embeddings are indexed by this column
+ct_specific: true
+ct_column: cell_line
+
+# Model
+model_type: mlp
+fusion_strat: concat
+hidden_dim: 256
+n_layers: 4
+
+# Training — MSE loss; select / early-stop on val residual AUPRC (ANY arm)
+max_epochs: 200
+patience: 10
+tol: 1e-4
+seed: 42
+max_folds: null               # e.g. max_folds=2 runs only the first two folds
+val_selection_criteria: residual_auprc_any
+residual_fdr_col: FDR
+residual_metrics: true
+
+sweep:
+  lr: [1e-3, 1e-4]
+  batch_size: [256]
+  weight_decay: [0.0, 0.01]
+  dropout: [0.0]

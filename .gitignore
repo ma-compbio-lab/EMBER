@@ -1,0 +1,22 @@
+__pycache__/
+*.egg-info/
+.venv/
+outputs/
+logs/
+
+# Downloaded data, checkpoints and embeddings (see README: Data)
+/data/*
+!/data/cxg_overfit.h5ad
+!/data/README.md
+/checkpoints/
+/embeddings/
+/gene_embeddings/
+
+# Task datasets are downloaded; only split-defining files are tracked
+tasks/**/*.csv
+!tasks/**/drug_lookup.csv
+tasks/**/*.h5ad
+tasks/**/results/
+tasks/**/results_*/
+.pytest_cache/
+

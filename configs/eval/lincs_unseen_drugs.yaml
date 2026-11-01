@@ -1,0 +1,61 @@
+# lincs-unseen-drugs: within-cell-line drug-response regression on UNSEEN drugs.
+#
+# Task. For one LINCS cell line, predict the DESeq2 log2FC of every (drug, gene)
+# pair (964 landmark genes) for drugs held out by 10 target-aware folds
+# (drugs sharing an exact target set are kept in the same fold, so a held-out
+# drug's target set is never seen in training). Train/val/test are all drugs of
+# the SAME line -- the embedding only needs that line's control cells.
+#
+# Cell lines (`cell_line` -> split json -> atlas key `ct_label`, a DepMap id):
+#   a375 = ACH-000219   a549 = ACH-000681   ht29 = ACH-000552   mcf7 = ACH-000019
+# The embedding pickle must be keyed by those DepMap ids:
+#   embeds['ACH-000681'][gene_symbol] -> float32[128]
+#
+# Metrics (see ember/eval/run_drug.py): per-drug Pearson over each drug's observed
+# genes, raw and *delta* (after subtracting the per-gene train-mean LFC -- the
+# train-mean "floor" that any model can reproduce without drug-specific signal).
+# Model selection / early stopping use validation MSE (negative MSE, higher is better).
+defaults:
+  - paths
+
+evaluator: drug   # driver used by evaluate.py (unseen-drug log2FC regression)
+
+cell_line: a549                                   # a375 | a549 | ht29 | mcf7
+embed_name: ember_base_lincs              # names the output files
+embed_path: ${root}/embeddings/${embed_name}.pkl  # override to point anywhere
+
+task_dir: ${root}/tasks/lincs-unseen-drugs
+atlas_path: ${task_dir}/atlas.h5ad                # X = log2FC (NaN = not tested)
+hvg_path: ${task_dir}/genes_eval.txt              # landmark gene panel (var order)
+split_spec: ${task_dir}/${cell_line}_split.json
+drug_lookup: ${task_dir}/drug_lookup.csv          # broad_id,targets,moa_classes,n_targets
+output_dir: ${task_dir}/results/${cell_line}
+name_suffix: ""
+
+# Drug representation: DeepSet over target-gene embeddings + MoA class per target
+drug_repr_mode: targets        # targets | morgan (fixed per-drug fingerprint pickle)
+use_moa: true
+moa_embed_dim: 8
+max_targets: 25
+
+# Model
+hidden_dim: 64
+n_layers: 2
+gene_embed_dim: 128            # morgan mode only (learnable gene embedding)
+drug_proj_layers: 1            # morgan mode only: 1 = Linear, >=2 = MLP projector
+
+# Training
+val_selection_criteria: mse    # mse | pearson_per_group | pearson_per_group_delta
+optimizer: adam
+max_epochs: 100
+patience: 8
+tol: 1.0e-4
+seed: 42
+num_workers: 0
+# +folds=[1] on the CLI runs a subset of folds; omitted -> all 10
+
+sweep:                         # 8 combinations per fold, best by val MSE
+  lr: [1.0e-3, 1.0e-4]
+  batch_size: [512]
+  weight_decay: [0.0, 0.01]
+  dropout: [0.0, 0.1]

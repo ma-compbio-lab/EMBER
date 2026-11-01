@@ -1,0 +1,31 @@
+# Smoke test: overfit the base recipe on the 10 cells in data/cxg_overfit.h5ad.
+# Runs on CPU in a few minutes; the training loss should fall steadily.
+#
+#   python pretrain.py --config-name overfit_smoke
+
+defaults:
+  - ember_base
+  - _self_
+
+name: "overfit_smoke"
+
+paths:
+  anndata_path: ${root}/data/cxg_overfit.h5ad
+  val_anndata_path: null
+
+data:
+  batch_size: 2
+  num_workers: 0
+
+model:
+  dropout: 0.0
+  graph_proj_dropout: 0.0
+
+training:
+  epochs: 30
+  save_epoch_freq: 10
+  load_from_checkpoint: false
+  overfit: true
+
+scheduler:
+  warmup_steps: 10

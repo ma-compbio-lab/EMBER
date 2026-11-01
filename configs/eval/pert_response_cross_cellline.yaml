@@ -1,0 +1,63 @@
+# Perturbation response — CROSS CELL LINE.
+#
+# Task: given a CRISPRi perturbation (`pert`) and a readout gene (`gene`), predict
+# whether the readout gene is differentially expressed in the target cell line
+# (label 1) or not (label 0). The CSV holds all four lines (HepG2, Jurkat, K562,
+# RPE1); each pair is embedded as [pert || gene] with ITS OWN line's contextual
+# embeddings (nested pickle keyed by cell line).
+#
+# Splits (split_1..split_10 columns, one deterministic 10-fold scheme): folds
+# hold out perturbations in the TARGET line only: the other three lines are
+# always train, and val/test rows come from the target line. A test pert may
+# have been seen in another line, so this measures cross-line transfer of a
+# response. Rows whose split value is not train/val/test are dropped for
+# that fold.
+#
+# Test pairs whose pert or gene has no embedding are kept and scored at the
+# training positive rate, so every embedding is evaluated on the same test set.
+#
+# Run:  python evaluate.py --config-name pert_response_cross_cellline cell_line=k562 embed_name=<pkl stem>
+#       cell_line in {hepg2, jurkat, k562, rpe1}
+defaults:
+  - paths
+
+evaluator: pairs   # driver used by evaluate.py (gene-pair probe)
+
+cell_line: k562
+embed_name: ember_base_pert_response
+embed_path: ${root}/embeddings/${embed_name}.pkl
+task_dir: ${root}/tasks/pert-response-cross-cellline
+dataset: ${task_dir}/${cell_line}.csv
+output_dir: ${task_dir}/results/${cell_line}
+name_suffix: ""
+
+task_type: classification
+label_col: label
+gene_columns: [pert, gene]
+missing_gene_strategy: filter
+
+# Nested embeddings are indexed by this column of the task CSV
+ct_specific: true
+ct_column: cell_line
+
+# Model
+model_type: mlp
+fusion_strat: concat
+hidden_dim: 128
+n_layers: 2
+
+# Training: per fold, every sweep combination is trained with early stopping
+# on validation AUROC and the best-val model is scored on the test set.
+max_epochs: 200
+patience: 10
+tol: 1e-4
+seed: 42
+max_folds: null               # e.g. max_folds=2 runs only the first two folds
+val_selection_criteria: auroc
+optimizer: adamw
+
+sweep:
+  lr: [1e-2, 1e-3, 1e-4]
+  batch_size: [256, 512]
+  weight_decay: [0.0, 0.01]
+  dropout: [0.0, 0.1]

@@ -1,0 +1,25 @@
+# Masked-expression-only ablation of the base recipe: identical model, data and
+# optimisation, but the PPI graph loss is disabled (no graph projection head, no
+# edge list needed). No separate validation file: a random 1 % of the training
+# cells (`data.train_ratio`) is held out instead.
+#
+#   python pretrain.py --config-name ember_nograph paths.anndata_path=/path/to/cells.h5ad
+
+defaults:
+  - ember_base
+  - _self_
+
+name: "ember_nograph"
+
+paths:
+  val_anndata_path: null
+  graph_path: null
+
+model:
+  use_graph_loss: false
+
+training:
+  epochs: 250
+  save_epoch_freq: 10
+  early_stopping_patience: 99999   # run the full schedule
+  load_from_checkpoint: false

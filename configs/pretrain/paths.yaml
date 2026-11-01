@@ -1,0 +1,10 @@
+# Base path configuration for evaluation configs.
+# `root` defaults to the directory you launch from (the repo root). Override
+# on the CLI (`root=/abs/path/to/Ember`) if you run from elsewhere.
+root: ${hydra:runtime.cwd}
+
+hydra:
+  job:
+    chdir: false
+  run:
+    dir: outputs/hydra/${now:%Y-%m-%d}/${now:%H-%M-%S}
