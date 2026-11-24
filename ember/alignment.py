@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-"""Guard against gene-label misalignment in cells fed to contextualization.
+"""Sanity check that gene labels match the expression matrix.
 
-WHY THIS EXISTS: a control-cell h5ad with SCRAMBLED gene labels (var_names shifted by
-one relative to X after a malformed export) once produced meaningless, collapsed
-contextual embeddings (all cell lines ~0.99 cosine) that went unnoticed for a long
-time. Contextualising on a misaligned matrix silently attaches every gene's
-expression to the wrong symbol.
+If an h5ad's ``var_names`` are out of step with the columns of ``X`` (e.g. after a
+malformed export), every gene's expression is attached to the wrong symbol and the
+resulting embeddings are not meaningful. ``extract_embeddings.py`` runs this check
+on each input before contextualizing.
 
-THE TELL is dead simple and universal: in ANY real single-cell matrix, the top-expressed
-genes are always mitochondrial (MT-*) and ribosomal (RPL/RPS) plus a few housekeeping
-genes (ACTB, GAPDH, EEF1A1, TMSB4X). If those read ~0 — or olfactory receptors /
-pseudogenes / lncRNAs top the list — the gene axis is misaligned. This module asserts the
-housekeeping tell, and is called by ``extract_embeddings.py`` before contextualizing.
+The check relies on a property of real single-cell data: the most highly expressed
+genes are mitochondrial (MT-*), ribosomal (RPL/RPS) and a few housekeeping genes
+(ACTB, GAPDH, EEF1A1, TMSB4X). If those are not near the top of the expression
+ranking, the gene axis is probably misaligned.
 
 Usage:
     from ember.alignment import check_gene_alignment

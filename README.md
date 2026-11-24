@@ -159,6 +159,19 @@ pooled `all` row) with the test metrics and the selected hyperparameters;
 writes `*_residual_metrics.csv` (main-effect-corrected AUPRC / AUROC for any /
 negative / positive interactions).
 
+## Additional notes
+
+- One quirk of EMBER embeddings: because each gene embedding has to encode gene identity, function and everything else in a single vector, the cosine similarity of the same gene's embedding across different cell types is typically high (0.92 to 0.98). This is expected behavior, and it is also what allows models trained on gene embeddings from one cell type to transfer to gene embeddings from other cell types. Context is still present. For example, if you train a linear probe on the gene embeddings, you will find that they are generally separable by cell type. How embeddings separate / rearrange across cell types also depends on the type of gene (Figure 2D of the paper).
+
 ## Citation
 
-*To be added.*
+```
+@article{ho2026ember,
+  title = {{EMBER: Contextualized gene representations enable compositional prediction across cellular perturbations}},
+  author = {Ho, Nicholas and Xing, Eric P. and Ma, Jian},
+  year = {2026},
+  journal = {bioRxiv},
+  doi = {10.64898/2026.10.28.762655},
+  url = {https://doi.org/10.64898/2026.10.28.762655},
+}
+```
